@@ -65,7 +65,8 @@
 
 ## Git
 
-- 纯本地仓库，无远端，不推远程；提交署名用
-  `git -c user.name="local-snapshot" -c user.email="snapshot@local"`。
+- 远端为 `https://github.com/530l/CmpAppScaffold`（公开仓库），提交后正常 push。
+- agent 代跑的提交署名 `git -c user.name="local-snapshot" -c user.email="snapshot@local"`，
+  用户手动提交用本人全局身份。
 - 构建产物、`local.properties`、keystore、`.env*` 均不入库（`.gitignore` 已覆盖）。
 - release 签名参数走 `CMP_RELEASE_*` gradle 属性，绝不硬编码进仓库。
