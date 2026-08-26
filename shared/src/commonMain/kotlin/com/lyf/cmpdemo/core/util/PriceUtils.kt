@@ -1,5 +1,6 @@
-package com.lyf.cmpdemo.cart
+package com.lyf.cmpdemo.core.util
 
+// 价格按分存整数避免浮点误差，展示时换算为元
 fun formatPrice(cents: Int): String {
     val yuan = cents / 100
     val fen = cents % 100

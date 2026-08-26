@@ -1,5 +1,6 @@
 package com.lyf.cmpdemo.core.init
 
+import com.lyf.cmpdemo.feature.cart.cartModule
 import org.koin.core.context.startKoin
 
 // 应用级初始化入口（两端统一）：
@@ -12,7 +13,7 @@ fun initSharedApp(context: Any? = null) {
     if (initialized) return
     initialized = true
     startKoin {
-        modules() // feature module 在各自 CartModule 等处定义后注册于此
+        modules(cartModule) // 各 feature 的 module 在此聚合注册
     }
     initPlatform(context)
 }

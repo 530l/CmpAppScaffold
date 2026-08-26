@@ -1,4 +1,4 @@
-package com.lyf.cmpdemo.cart
+package com.lyf.cmpdemo.feature.cart.presentation
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -27,30 +27,26 @@ import androidx.compose.material3.TriStateCheckbox
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
-
-// 视觉常量；接入主题系统时可整体替换为 MaterialTheme.colorScheme 取值
-private val AccentRed = Color(0xFFE93B3D)
-private val PageBg = Color(0xFFF6F6F8)
-private val CardBg = Color.White
-private val TitleText = Color(0xFF1B1B1B)
-private val SubText = Color(0xFF9A9A9A)
+import com.lyf.cmpdemo.core.design.AppColors
+import com.lyf.cmpdemo.core.util.formatPrice
+import com.lyf.cmpdemo.feature.cart.domain.CartItem
+import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
 fun CartScreen(
-    // common 代码里 viewModel() 必须显式传 initializer：
-    // 非 JVM 平台（iOS）没有类型反射，框架无法推断零参构造
-    viewModel: CartViewModel = viewModel { CartViewModel() },
+    // Koin 注入（common 代码 viewModel() 必须带 initializer 的官方约束由 Koin 兜底：
+    // koinViewModel 从 Koin 容器按类型解析，不依赖平台反射）
+    viewModel: CartViewModel = koinViewModel(),
 ) {
+    val uiState = viewModel.uiState
     Scaffold(
-        containerColor = PageBg,
+        containerColor = AppColors.PageBg,
         bottomBar = { SettleBar(viewModel) },
     ) { padding ->
         Column(
@@ -63,7 +59,7 @@ fun CartScreen(
                 text = "购物车",
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
-                color = TitleText,
+                color = AppColors.TitleText,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 16.dp),
@@ -71,8 +67,8 @@ fun CartScreen(
             )
             // LazyColumn 按需组合可见行；key 用稳定 id，列表变化时做精准增量刷新
             LazyColumn(modifier = Modifier.weight(1f)) {
-                items(viewModel.items, key = { it.id }) { item ->
-                    CartItemRow(item = item, onToggle = { viewModel.toggleItem(item) })
+                items(uiState.items, key = { it.id }) { item ->
+                    CartItemRow(item = item, onToggle = { viewModel.onIntent(CartIntent.ToggleItem(item.id)) })
                 }
             }
         }
@@ -84,7 +80,7 @@ private fun CartItemRow(item: CartItem, onToggle: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(CardBg)
+            .background(AppColors.CardBg)
             .toggleable(
                 value = item.selected,
                 role = Role.Checkbox,
@@ -106,12 +102,12 @@ private fun CartItemRow(item: CartItem, onToggle: () -> Unit) {
                 .weight(1f)
                 .padding(start = 12.dp),
         ) {
-            Text(text = item.name, fontSize = 15.sp, fontWeight = FontWeight.Medium, color = TitleText)
+            Text(text = item.name, fontSize = 15.sp, fontWeight = FontWeight.Medium, color = AppColors.TitleText)
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = "${formatPrice(item.priceCents)} × ${item.count}",
                 fontSize = 13.sp,
-                color = SubText,
+                color = AppColors.SubText,
             )
         }
         // onCheckedChange = null：勾选交互由父级 toggleable 统一处理，
@@ -119,14 +115,14 @@ private fun CartItemRow(item: CartItem, onToggle: () -> Unit) {
         Checkbox(
             checked = item.selected,
             onCheckedChange = null,
-            colors = CheckboxDefaults.colors(checkedColor = AccentRed),
+            colors = CheckboxDefaults.colors(checkedColor = AppColors.AccentRed),
         )
     }
 }
 
 @Composable
 private fun SettleBar(viewModel: CartViewModel) {
-    Surface(color = CardBg, shadowElevation = 8.dp) {
+    Surface(color = AppColors.CardBg, shadowElevation = 8.dp) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -134,33 +130,34 @@ private fun SettleBar(viewModel: CartViewModel) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             // 全选三态：全选 On / 部分选 Indeterminate / 全不选 Off
+            val uiState = viewModel.uiState
             val allState = when {
-                viewModel.allSelected -> ToggleableState.On
-                viewModel.selectedCount > 0 -> ToggleableState.Indeterminate
+                uiState.allSelected -> ToggleableState.On
+                uiState.selectedCount > 0 -> ToggleableState.Indeterminate
                 else -> ToggleableState.Off
             }
             Row(
                 modifier = Modifier.triStateToggleable(
                     state = allState,
-                    onClick = viewModel::toggleSelectAll,
+                    onClick = { viewModel.onIntent(CartIntent.ToggleSelectAll) },
                 ),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 TriStateCheckbox(
                     state = allState,
                     onClick = null, // 同上，交互由父级 triStateToggleable 处理
-                    colors = CheckboxDefaults.colors(checkedColor = AccentRed),
+                    colors = CheckboxDefaults.colors(checkedColor = AppColors.AccentRed),
                 )
-                Text(text = "全选", fontSize = 14.sp, color = TitleText)
+                Text(text = "全选", fontSize = 14.sp, color = AppColors.TitleText)
             }
             Spacer(modifier = Modifier.weight(1f))
             Column(horizontalAlignment = Alignment.End) {
-                Text(text = "合计", fontSize = 12.sp, color = SubText)
+                Text(text = "合计", fontSize = 12.sp, color = AppColors.SubText)
                 Text(
-                    text = formatPrice(viewModel.totalCents),
+                    text = formatPrice(uiState.totalCents),
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
-                    color = AccentRed,
+                    color = AppColors.AccentRed,
                 )
             }
             Spacer(modifier = Modifier.width(12.dp))
@@ -168,11 +165,11 @@ private fun SettleBar(viewModel: CartViewModel) {
             // TODO 结算流程待接
             Button(
                 onClick = {},
-                enabled = viewModel.selectedCount > 0,
-                colors = ButtonDefaults.buttonColors(containerColor = AccentRed),
+                enabled = uiState.selectedCount > 0,
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.AccentRed),
                 modifier = Modifier.height(42.dp),
             ) {
-                Text(text = "去结算(${viewModel.selectedCount})")
+                Text(text = "去结算(${uiState.selectedCount})")
             }
         }
     }
