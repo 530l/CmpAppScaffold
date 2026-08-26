@@ -26,6 +26,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TriStateCheckbox
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -112,10 +113,15 @@ private fun CartContent(
                     onRetry = { onIntent(CartIntent.Retry) },
                 )
                 uiState.items.isEmpty() -> EmptyContent()
-                else -> CartList(
-                    uiState = uiState,
-                    onIntent = onIntent,
-                )
+                else -> PullToRefreshBox(
+                    isRefreshing = uiState.isRefreshing,
+                    onRefresh = { onIntent(CartIntent.Refresh) },
+                ) {
+                    CartList(
+                        uiState = uiState,
+                        onIntent = onIntent,
+                    )
+                }
             }
         }
     }

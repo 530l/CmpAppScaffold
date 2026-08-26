@@ -32,6 +32,7 @@ shared                    共用应用入口、初始化、DI/数据库与导航
 - Coil：复用应用级 Ktor `HttpClient` 的单例图片加载器和统一 `AppImage` 入口。
 - Kermit：统一日志门面，业务代码不绑定具体日志库。
 - Compose Resources / Material 3：Feature 自有文案、亮色与深色主题、加载/错误/空状态。
+- 刷新与加载更多：Material3 官方 `PullToRefreshBox`（common 源集）+ `core/ui/loadmore` 分页组件族（`LoadableLazyColumn` 容器、`LoadableController` 状态机、`LoadMoreFooter`/`LoadMoreTrigger`），互斥去重与结束判定带 JVM/iOS 双端单测。
 - Navigation 3：可序列化跨平台 back stack、统一 `AppNavigator`、Entry 级状态保存及 ViewModel 生命周期。
 - 发布基础：Android release 混淆与资源压缩、禁止明文流量和系统备份；iOS 已放置 Privacy Manifest。
 
@@ -53,6 +54,40 @@ class ProductRemoteDataSource(
 ```
 
 Ktorfit 负责生成接口实现；`safeRequest` 会把 HTTP、连接、序列化及未知错误映射成 `NetworkError`，协程取消继续向上抛出。默认仅对幂等请求的 5xx 与传输异常最多退避重试两次。
+
+分页列表统一走 `core/ui/loadmore`：ViewModel 的 UiState 实现 `LoadableUiState` 嵌入刷新/分页状态，`LoadableController` 负责页码、互斥去重与结束判定（`Page(items, hasMore)` 由调用方按后端 cursor/总数信号显式给出，不要用「返回条数 < pageSize」推断）：
+
+```kotlin
+data class ProductsUiState(
+    val keyword: String = "",
+    override val dataList: List<Product> = emptyList(),
+    override val isRefreshing: Boolean = false,
+    override val isInitializing: Boolean = true,
+    override val loadMoreState: LoadMoreState = LoadMoreState.Idle,
+) : LoadableUiState<Product, ProductsUiState> {
+    override fun copyState(...) = copy(...)
+}
+
+// ViewModel：Intent 分发到 controller，onIntent 仍是唯一入口
+private val loadable = LoadableController(
+    scope = viewModelScope,
+    initialUiState = ProductsUiState(),
+    loadPage = { page -> repository.loadPage(page) }, // suspend (Int) -> Result<Page<Product>>
+    onError = { error, isListEmpty -> /* 整页错误 or 非阻断提示 */ },
+)
+
+// Composable：容器自动处理下拉刷新、footer 追加与触底检测
+LoadableLazyColumn(
+    isRefreshing = uiState.isRefreshing,
+    loadMoreState = uiState.loadMoreState,
+    onRefresh = { onIntent(ProductsIntent.Refresh) },
+    onLoadMore = { onIntent(ProductsIntent.LoadMore) },
+) {
+    items(uiState.dataList, key = Product::id) { ProductRow(it) }
+}
+```
+
+本地全量列表（如购物车，Room 响应式 Flow）不需要分页组件，直接用 `PullToRefreshBox` 包住列表，刷新走「远端整单拉取写库 → Flow 自动回流」。
 
 ## 环境配置
 

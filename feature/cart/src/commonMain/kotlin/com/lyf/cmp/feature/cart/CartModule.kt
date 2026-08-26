@@ -12,6 +12,6 @@ import org.koin.dsl.module
 val cartModule = module {
     single { get<Ktorfit>().createCartApi() }
     single { CartRemoteDataSource(get()) }
-    single<CartRepository> { DefaultCartRepository(get()) }
+    single<CartRepository> { DefaultCartRepository(dao = get(), remoteDataSource = get()) }
     viewModel { CartViewModel(get()) }
 }

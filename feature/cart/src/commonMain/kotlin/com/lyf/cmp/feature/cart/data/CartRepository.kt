@@ -2,8 +2,11 @@ package com.lyf.cmp.feature.cart.data
 
 import com.lyf.cmp.core.model.CurrencyCode
 import com.lyf.cmp.core.model.Money
+import com.lyf.cmp.core.network.NetworkResult
 import com.lyf.cmp.feature.cart.data.local.CartDao
 import com.lyf.cmp.feature.cart.data.local.CartItemEntity
+import com.lyf.cmp.feature.cart.data.remote.CartItemDto
+import com.lyf.cmp.feature.cart.data.remote.CartRemoteDataSource
 import com.lyf.cmp.feature.cart.domain.CartItem
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -11,12 +14,14 @@ import kotlinx.coroutines.flow.map
 interface CartRepository {
     fun observeCartItems(): Flow<List<CartItem>>
     suspend fun ensureSeeded()
+    suspend fun refreshFromRemote(): NetworkResult<Unit>
     suspend fun toggleSelection(itemId: Long)
     suspend fun setAllSelected(selected: Boolean)
 }
 
 class DefaultCartRepository(
     private val dao: CartDao,
+    private val remoteDataSource: CartRemoteDataSource,
 ) : CartRepository {
     override fun observeCartItems(): Flow<List<CartItem>> =
         dao.observeAll().map { entities -> entities.map(CartItemEntity::toDomain) }
@@ -24,6 +29,16 @@ class DefaultCartRepository(
     override suspend fun ensureSeeded() {
         if (dao.count() == 0) dao.insertAll(SEED_ITEMS)
     }
+
+    override suspend fun refreshFromRemote(): NetworkResult<Unit> =
+        when (val result = remoteDataSource.getCart()) {
+            is NetworkResult.Success -> {
+                dao.replaceAll(result.value.map(CartItemDto::toEntity))
+                NetworkResult.Success(Unit, result.statusCode)
+            }
+
+            is NetworkResult.Failure -> result
+        }
 
     override suspend fun toggleSelection(itemId: Long) {
         dao.toggleSelection(itemId)
@@ -41,6 +56,17 @@ private fun CartItemEntity.toDomain(): CartItem = CartItem(
         minorUnits = priceMinor,
         currency = CurrencyCode.valueOf(currencyCode),
     ),
+    count = count,
+    emoji = emoji,
+    imageUrl = imageUrl,
+    selected = selected,
+)
+
+private fun CartItemDto.toEntity(): CartItemEntity = CartItemEntity(
+    id = id,
+    name = name,
+    priceMinor = priceMinor,
+    currencyCode = currencyCode,
     count = count,
     emoji = emoji,
     imageUrl = imageUrl,

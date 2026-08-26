@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -22,4 +23,14 @@ interface CartDao {
 
     @Query("UPDATE cart_items SET selected = :selected")
     suspend fun setAllSelected(selected: Boolean)
+
+    @Query("DELETE FROM cart_items")
+    suspend fun clearAll()
+
+    /** 下拉刷新成功后以服务端数据整表替换，事务内清空再写入。 */
+    @Transaction
+    suspend fun replaceAll(items: List<CartItemEntity>) {
+        clearAll()
+        insertAll(items)
+    }
 }

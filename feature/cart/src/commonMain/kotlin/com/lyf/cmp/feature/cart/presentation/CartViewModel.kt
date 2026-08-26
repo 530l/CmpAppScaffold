@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.lyf.cmp.core.log.AppLogger
 import com.lyf.cmp.core.model.Money
+import com.lyf.cmp.core.network.NetworkResult
 import com.lyf.cmp.feature.cart.data.CartRepository
 import com.lyf.cmp.feature.cart.domain.CartItem
 import kotlinx.coroutines.CancellationException
@@ -17,6 +18,7 @@ import kotlinx.coroutines.launch
 
 data class CartUiState(
     val isLoading: Boolean = true,
+    val isRefreshing: Boolean = false,
     val items: List<CartItem> = emptyList(),
     val error: CartError? = null,
 ) {
@@ -39,6 +41,7 @@ sealed interface CartIntent {
     data class ToggleItem(val itemId: Long) : CartIntent
     data object ToggleSelectAll : CartIntent
     data object Retry : CartIntent
+    data object Refresh : CartIntent
 }
 
 class CartViewModel(
@@ -61,6 +64,31 @@ class CartViewModel(
                 repository.setAllSelected(!_uiState.value.allSelected)
             }
             CartIntent.Retry -> observeCart()
+            CartIntent.Refresh -> launchRefresh()
+        }
+    }
+
+    /** 下拉刷新：远端整单拉取写库，Room Flow 自动回流；失败时保留本地数据并走错误横幅。 */
+    private fun launchRefresh() {
+        if (_uiState.value.isRefreshing) return
+        viewModelScope.launch {
+            _uiState.update { it.copy(isRefreshing = true, error = null) }
+            try {
+                when (val result = repository.refreshFromRemote()) {
+                    is NetworkResult.Success -> Unit
+                    is NetworkResult.Failure -> {
+                        AppLogger.error(TAG) { "购物车刷新失败：${result.error}" }
+                        _uiState.update { it.copy(error = CartError.LOAD_FAILED) }
+                    }
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Throwable) {
+                AppLogger.error(TAG, error) { "购物车刷新失败" }
+                _uiState.update { it.copy(error = CartError.LOAD_FAILED) }
+            } finally {
+                _uiState.update { it.copy(isRefreshing = false) }
+            }
         }
     }
 

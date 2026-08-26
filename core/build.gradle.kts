@@ -19,6 +19,12 @@ kotlin {
         compilerOptions {
             jvmTarget = JvmTarget.JVM_11
         }
+
+        // 不开启 withHostTest 时 AGP 9 KMP library 不会生成 Android 端单测任务，
+        // commonTest 里的用例将只在 native target 执行。
+        withHostTest {
+            isIncludeAndroidResources = true
+        }
     }
 
     sourceSets {
@@ -39,6 +45,7 @@ kotlin {
             implementation(libs.compose.foundation)
             implementation(libs.compose.material3)
             implementation(libs.compose.ui)
+            implementation(libs.compose.components.resources)
 
             // 依赖注入
             implementation(libs.koin.core)
@@ -63,5 +70,13 @@ kotlin {
             // 键值存储：实现细节不外泄，业务只依赖 core/storage 的 KeyValueStore 接口
             implementation(libs.mmkv.kmp)
         }
+        commonTest.dependencies {
+            implementation(libs.kotlin.test)
+            implementation(libs.kotlinx.coroutines.test)
+        }
     }
+}
+
+compose.resources {
+    packageOfResClass = "com.lyf.cmp.core.resources"
 }

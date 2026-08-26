@@ -1,6 +1,8 @@
 package com.lyf.cmp.feature.cart.presentation
 
 import com.lyf.cmp.core.model.Money
+import com.lyf.cmp.core.network.NetworkError
+import com.lyf.cmp.core.network.NetworkResult
 import com.lyf.cmp.core.util.formatMoney
 import com.lyf.cmp.feature.cart.data.CartRepository
 import com.lyf.cmp.feature.cart.domain.CartItem
@@ -13,11 +15,13 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import kotlinx.io.IOException
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -73,14 +77,48 @@ class CartViewModelTest {
         assertEquals(0, viewModel.uiState.value.selectedLineCount)
         assertEquals(Money.zero(), viewModel.uiState.value.total)
     }
+
+    @Test
+    fun refreshSuccessStopsIndicatorAndClearsError() = runTest(dispatcher) {
+        val viewModel = CartViewModel(FakeCartRepository())
+        advanceUntilIdle()
+
+        viewModel.onIntent(CartIntent.Refresh)
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isRefreshing)
+        assertNull(viewModel.uiState.value.error)
+        assertEquals(6, viewModel.uiState.value.items.size)
+    }
+
+    @Test
+    fun refreshFailureKeepsItemsAndShowsLoadError() = runTest(dispatcher) {
+        val viewModel = CartViewModel(
+            FakeCartRepository(
+                refreshResult = NetworkResult.Failure(NetworkError.Connectivity(IOException())),
+            ),
+        )
+        advanceUntilIdle()
+
+        viewModel.onIntent(CartIntent.Refresh)
+        advanceUntilIdle()
+
+        assertEquals(CartError.LOAD_FAILED, viewModel.uiState.value.error)
+        assertFalse(viewModel.uiState.value.isRefreshing)
+        assertEquals(6, viewModel.uiState.value.items.size)
+    }
 }
 
-private class FakeCartRepository : CartRepository {
+private class FakeCartRepository(
+    private val refreshResult: NetworkResult<Unit> = NetworkResult.Success(Unit, 200),
+) : CartRepository {
     private val items = MutableStateFlow(SEED_ITEMS)
 
     override fun observeCartItems(): Flow<List<CartItem>> = items
 
     override suspend fun ensureSeeded() = Unit
+
+    override suspend fun refreshFromRemote(): NetworkResult<Unit> = refreshResult
 
     override suspend fun toggleSelection(itemId: Long) {
         items.value = items.value.map { item ->
