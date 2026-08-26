@@ -14,6 +14,27 @@ junit = "4.13.2"
 kotlin = "2.4.10"
 material3 = "1.11.0-alpha07"
 
+# 商业化技术栈（2026-08-26 定稿，版本经 Maven Central / Google Maven metadata 核实）
+# 注意：KSP 已改为独立版本号，不再与 Kotlin 版本前缀绑定
+ksp = "2.3.11"
+koin = "4.2.2"
+ktor = "3.5.2"
+ktorfitLib = "2.7.5"
+# Ktorfit 的 Gradle 插件 2.7.2 与 Kotlin 2.4 KMP 不兼容（内部使用已废弃的 ksp 全局
+# 配置），故不走插件，改纯 KSP 接入：ktorfit-ksp 已在各 target 的 ksp 配置手动声明
+kotlinxSerializationJson = "1.11.0"
+room = "2.8.4"
+mmkv = "2.4.2"             # official KMP，experimental
+coil = "3.5.0"
+kermit = "2.1.0"
+kotlinxDatetime = "0.8.0-0.6.x-compat"
+# 导航：CMP 必须用 JetBrains 重发布的 org.jetbrains.androidx.navigation3（多平台 ui）；
+# androidx 原版 navigation3-ui 仅 Android variant，CMP 下解析失败
+navigation3 = "1.1.1"
+turbine = "1.2.1"
+# mockative 3.3.x 要求 compileSdk 37+，项目 36，锁 3.2.3
+mockative = "3.2.3"
+
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
 kotlin-testJunit = { module = "org.jetbrains.kotlin:kotlin-test-junit", version.ref = "kotlin" }
@@ -33,9 +54,40 @@ compose-ui = { module = "org.jetbrains.compose.ui:ui", version.ref = "composeMul
 compose-components-resources = { module = "org.jetbrains.compose.components:components-resources", version.ref = "composeMultiplatform" }
 compose-uiToolingPreview = { module = "org.jetbrains.compose.ui:ui-tooling-preview", version.ref = "composeMultiplatform" }
 
+# 依赖注入：Koin
+koin-core = { module = "io.insert-koin:koin-core", version.ref = "koin" }
+koin-compose = { module = "io.insert-koin:koin-compose", version.ref = "koin" }
+koin-compose-viewmodel = { module = "io.insert-koin:koin-compose-viewmodel", version.ref = "koin" }
+# 网络：Ktor + Ktorfit（Retrofit 风格，KSP 编译期生成；Retrofit 无 KMP 支持）
+ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }
+ktor-client-okhttp = { module = "io.ktor:ktor-client-okhttp", version.ref = "ktor" }
+ktor-client-darwin = { module = "io.ktor:ktor-client-darwin", version.ref = "ktor" }
+ktorfit-lib = { module = "de.jensklingenberg.ktorfit:ktorfit-lib", version.ref = "ktorfitLib" }
+ktorfit-ksp = { module = "de.jensklingenberg.ktorfit:ktorfit-ksp", version.ref = "ktorfitLib" }
+# 序列化
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerializationJson" }
+# 数据库：Room（KSP 处理器见 shared/build.gradle.kts）
+androidx-room-runtime = { module = "androidx.room:room-runtime", version.ref = "room" }
+androidx-room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
+# 键值存储：MMKV（experimental，锁 2.4.2）
+mmkv-kmp = { module = "com.tencent:mmkv-kmp", version.ref = "mmkv" }
+# 图片：Coil 3（网络层走 Ktor 引擎）
+coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
+coil-network-ktor = { module = "io.coil-kt.coil3:coil-network-ktor3", version.ref = "coil" }
+# 日志 / 时间 / 导航
+kermit = { module = "co.touchlab:kermit", version.ref = "kermit" }
+kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "kotlinxDatetime" }
+androidx-navigation3-runtime = { module = "androidx.navigation3:navigation3-runtime", version.ref = "navigation3" }
+jetbrains-navigation3-ui = { module = "org.jetbrains.androidx.navigation3:navigation3-ui", version.ref = "navigation3" }
+# 测试
+turbine = { module = "app.cash.turbine:turbine", version.ref = "turbine" }
+mockative = { module = "io.mockative:mockative", version.ref = "mockative" }
+
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }
 androidMultiplatformLibrary = { id = "com.android.kotlin.multiplatform.library", version.ref = "agp" }
 composeMultiplatform = { id = "org.jetbrains.compose", version.ref = "composeMultiplatform" }
 composeCompiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
+ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
+kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
