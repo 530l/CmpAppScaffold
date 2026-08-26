@@ -35,11 +35,11 @@ dependencies {
 }
 
 android {
-    namespace = "com.lyf.cmpappscaffold"
+    namespace = "com.lyf.cmp"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
 
     defaultConfig {
-        applicationId = "com.lyf.cmpappscaffold"
+        applicationId = "com.lyf.cmp"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = 1

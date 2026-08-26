@@ -23,7 +23,7 @@ kotlin {
     }
     
     android {
-       namespace = "com.lyf.cmpappscaffold.shared"
+       namespace = "com.lyf.cmp.shared"
        compileSdk = libs.versions.android.compileSdk.get().toInt()
        minSdk = libs.versions.android.minSdk.get().toInt()
     
