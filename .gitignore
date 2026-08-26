@@ -3,8 +3,13 @@
 .gradle
 **/build/
 xcuserdata
-!src/**/build/
 local.properties
+*.jks
+*.keystore
+keystore.properties
+.env
+.env.*
+!.env.example
 .idea
 .DS_Store
 captures

@@ -1,9 +1,16 @@
 package com.lyf.cmpdemo.core.init
 
-import com.tencent.mmkv.kmp.MMKV
-import com.tencent.mmkv.kmp.initialize
+import com.lyf.cmpdemo.core.config.AppConfig
+import com.lyf.cmpdemo.database.AppDatabase
+import com.lyf.cmpdemo.database.createDatabase
+import org.koin.dsl.module
 
-actual fun initPlatform(context: Any?) {
-    // MMKV：iOS 端无参初始化（要求主线程），默认根目录 Documents/mmkv
-    MMKV.initialize()
+fun initSharedApp(config: AppConfig = AppConfig()) {
+    initializeSharedApp(
+        config = config,
+        platformModule = module {
+            single { createDatabase() }
+            single { get<AppDatabase>().cartDao() }
+        },
+    )
 }

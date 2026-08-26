@@ -1,10 +1,21 @@
 package com.lyf.cmpdemo.core.init
 
 import android.content.Context
-import com.tencent.mmkv.kmp.MMKV
-import com.tencent.mmkv.kmp.initialize
+import com.lyf.cmpdemo.core.config.AppConfig
+import com.lyf.cmpdemo.database.AppDatabase
+import com.lyf.cmpdemo.database.createDatabase
+import org.koin.dsl.module
 
-actual fun initPlatform(context: Any?) {
-    // MMKV：Android 端必须传 Application Context（通常在 Application.onCreate）
-    MMKV.initialize(context as Context)
+fun initSharedApp(
+    context: Context,
+    config: AppConfig = AppConfig(),
+) {
+    val appContext = context.applicationContext
+    initializeSharedApp(
+        config = config,
+        platformModule = module {
+            single { createDatabase(appContext) }
+            single { get<AppDatabase>().cartDao() }
+        },
+    )
 }

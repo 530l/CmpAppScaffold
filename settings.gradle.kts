@@ -28,4 +28,7 @@ dependencyResolutionManagement {
 }
 
 include(":androidApp")
+include(":core")
+include(":feature:cart")
+include(":feature:login")
 include(":shared")

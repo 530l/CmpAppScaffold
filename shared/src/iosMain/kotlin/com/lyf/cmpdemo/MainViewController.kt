@@ -2,9 +2,12 @@ package com.lyf.cmpdemo
 
 import androidx.compose.ui.window.ComposeUIViewController
 import com.lyf.cmpdemo.core.init.initSharedApp
+import platform.UIKit.UIViewController
 
-fun MainViewController() = ComposeUIViewController {
-    // iOS 侧共享层初始化（Koin + MMKV，幂等）；Swift 壳零改动
+fun MainViewController(): UIViewController {
+    // 初始化属于宿主生命周期，不在 Composable 中执行副作用。
     initSharedApp()
-    App()
+    return ComposeUIViewController {
+        App()
+    }
 }

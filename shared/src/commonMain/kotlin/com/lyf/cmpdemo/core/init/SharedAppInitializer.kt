@@ -1,22 +1,28 @@
 package com.lyf.cmpdemo.core.init
 
+import com.lyf.cmpdemo.core.config.AppConfig
+import com.lyf.cmpdemo.core.di.coreModule
 import com.lyf.cmpdemo.feature.cart.cartModule
+import kotlinx.atomicfu.atomic
 import org.koin.core.context.startKoin
+import org.koin.core.module.Module
 
-// 应用级初始化入口（两端统一）：
-// Android：Application.onCreate 调 initSharedApp(this)
-// iOS：MainViewController 首次创建时调 initSharedApp()（主线程）
-// common 只负责 Koin；MMKV 等平台初始化见各平台 actual
-private var initialized = false
+private val initialized = atomic(false)
 
-fun initSharedApp(context: Any? = null) {
-    if (initialized) return
-    initialized = true
-    startKoin {
-        modules(cartModule) // 各 feature 的 module 在此聚合注册
+/** 两个平台共用的幂等初始化边界。初始化失败时允许下一次重试。 */
+internal fun initializeSharedApp(
+    config: AppConfig,
+    platformModule: Module,
+) {
+    if (!initialized.compareAndSet(expect = false, update = true)) return
+
+    try {
+        startKoin {
+            allowOverride(false)
+            modules(coreModule(config), platformModule, cartModule)
+        }
+    } catch (error: Throwable) {
+        initialized.value = false
+        throw error
     }
-    initPlatform(context)
 }
-
-// 平台初始化：Android 传 Application，iOS 传 null
-internal expect fun initPlatform(context: Any?)

@@ -6,7 +6,7 @@ import com.lyf.cmpdemo.core.init.initSharedApp
 class CmpApplication : Application() {
     override fun onCreate() {
         super.onCreate()
-        // 共享层初始化：Koin + MMKV（Android 端需传 Context）
+        // 在首个界面创建前完成依赖注入和数据库初始化。
         initSharedApp(this)
     }
 }
