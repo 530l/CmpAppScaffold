@@ -1,4 +1,4 @@
-# CMPDemo
+# CmpAppScaffold
 
 一个面向 Android 与 iOS 的 Compose Multiplatform / Kotlin Multiplatform 商业项目脚手架。当前购物车示例不是内存假数据：选中状态由 Room 持久化，并通过 `Flow → StateFlow → Compose` 单向更新 UI。
 

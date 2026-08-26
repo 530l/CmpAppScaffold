@@ -1,4 +1,4 @@
-# AGENTS.md — CMPDemo 工程 Agent 工作守则
+# AGENTS.md — CmpAppScaffold 工程 Agent 工作守则
 
 面向 Android/iOS 的 Compose Multiplatform 商业化脚手架（Kotlin 2.4.10 / CMP 1.11.1 / AGP 9.0.1 / compileSdk 36 / minSdk 24）。
 模块边界、分层职责的完整说明见 `README.md`，本文件只补充 agent 操作层面的规则。
