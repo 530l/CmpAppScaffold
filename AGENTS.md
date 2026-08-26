@@ -44,6 +44,8 @@
 - 金额一律用 `core/model/Money`（最小货币单位 Long），展示用 `formatMoney`，禁止浮点。
 - 日志走 `core/log/AppLogger`，不直接依赖 Kermit；网络错误走 `NetworkResult` 边界，
   `CancellationException` 必须原样重抛。
+- 键值存储只注入 `core/storage/KeyValueStore` 接口，key 用业务模块的常量对象集中声明，
+  不在调用点写裸字符串；MMKV 是 native 实现，JVM host 单测跑不了真实现，测试用内存 Fake。
 - 共享代码不接收 `Any?` 平台对象，平台差异收在 `androidMain`/`iosMain`。
 - 注释和命名不与鸿蒙端工程对标；这是独立演进的 Kotlin 工程。
 
@@ -57,6 +59,9 @@
   （androidx 原版仅 Android variant，CMP 下 iOS 解析失败）。
 - 含 commonTest 的模块必须在 android 块显式 `withHostTest {}`，否则 AGP 9 KMP library
   不生成 Android 端单测任务，用例只在 native target 跑。
+- MMKV（`com.tencent:mmkv-kmp`）：iOS 端 `MMKV.initialize` 必须在主线程、且先于一切读写
+  （已由 `initSharedApp` 首行的 `initPlatformStorage` 保证，勿调整顺序）；iOS 侧不要再通过
+  CocoaPods/SwiftPM 引入 MMKV 原生库，否则与 KMP 依赖重复链接。
 
 ## Git
 

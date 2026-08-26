@@ -12,5 +12,6 @@
 | Coil | 图片加载 | Apache-2.0 |
 | Kermit | 日志 | Apache-2.0 |
 | SQLite（bundled） | 本地数据库引擎 | Public Domain |
+| MMKV（mmkv-kmp） | 键值存储 | BSD 3-Clause |
 
 依赖升级或新增 SDK 时必须重新核对许可证、传递依赖、隐私清单和商店披露要求。

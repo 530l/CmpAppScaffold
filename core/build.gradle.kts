@@ -59,6 +59,9 @@ kotlin {
             implementation(libs.coil.compose)
             implementation(libs.coil.network.ktor)
             implementation(libs.kermit)
+
+            // 键值存储：实现细节不外泄，业务只依赖 core/storage 的 KeyValueStore 接口
+            implementation(libs.mmkv.kmp)
         }
     }
 }
