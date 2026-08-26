@@ -16,7 +16,7 @@ shared                    共用应用入口、初始化、DI/数据库与导航
 - `core` 是独立 KMP 基础模块，只提供可复用能力，禁止依赖 `shared` 或任何 `feature` 包。
 - `shared` 是 Android/iOS 共用的应用组合根，通过 `api(project(":core"))` 暴露基础接口；宿主仍只依赖 `shared`。
 - `feature:cart`、`feature:login` 是独立 KMP Gradle 模块，只依赖 `core`，禁止 Feature 之间直接依赖。
-- `AppDatabase` 留在 `shared` 的应用级 `com.lyf.cmpdemo.database` 包，由它聚合各业务 Entity，避免出现 `core → feature` 反向依赖。
+- `AppDatabase` 留在 `shared` 的应用级 `com.lyf.cmpappscaffold.database` 包，由它聚合各业务 Entity，避免出现 `core → feature` 反向依赖。
 - `domain` 只放纯 Kotlin 模型和规则，不引用 Compose、Room、Ktor。
 - `data` 负责 DAO、DTO、映射和 Repository 实现。
 - `presentation` 使用不可变 `UiState` 和 `Intent`；Composable 子组件只接收状态与回调。

@@ -15,7 +15,7 @@ kotlin {
     iosSimulatorArm64()
 
     android {
-        namespace = "com.lyf.cmpdemo.feature.cart"
+        namespace = "com.lyf.cmpappscaffold.feature.cart"
         compileSdk = libs.versions.android.compileSdk.get().toInt()
         minSdk = libs.versions.android.minSdk.get().toInt()
 
@@ -65,7 +65,7 @@ kotlin {
 }
 
 compose.resources {
-    packageOfResClass = "com.lyf.cmpdemo.feature.cart.resources"
+    packageOfResClass = "com.lyf.cmpappscaffold.feature.cart.resources"
 }
 
 ktorfit {

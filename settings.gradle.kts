@@ -1,4 +1,4 @@
-rootProject.name = "CMPDemo"
+rootProject.name = "CmpAppScaffold"
 
 pluginManagement {
     repositories {

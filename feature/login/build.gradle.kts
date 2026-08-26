@@ -13,7 +13,7 @@ kotlin {
     iosSimulatorArm64()
 
     android {
-        namespace = "com.lyf.cmpdemo.feature.login"
+        namespace = "com.lyf.cmpappscaffold.feature.login"
         compileSdk = libs.versions.android.compileSdk.get().toInt()
         minSdk = libs.versions.android.minSdk.get().toInt()
 
@@ -43,7 +43,7 @@ kotlin {
 }
 
 compose.resources {
-    packageOfResClass = "com.lyf.cmpdemo.feature.login.resources"
+    packageOfResClass = "com.lyf.cmpappscaffold.feature.login.resources"
 }
 
 dependencies {

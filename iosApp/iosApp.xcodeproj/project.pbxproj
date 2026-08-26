@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXFileReference section */
-		80AAC4C472B395B893FC5DB0 /* CMPDemo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CMPDemo.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		80AAC4C472B395B893FC5DB0 /* CmpAppScaffold.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CmpAppScaffold.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -59,7 +59,7 @@
 		40222E4179CE9D6B46E3D22B /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				80AAC4C472B395B893FC5DB0 /* CMPDemo.app */,
+				80AAC4C472B395B893FC5DB0 /* CmpAppScaffold.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -87,7 +87,7 @@
 			packageProductDependencies = (
 			);
 			productName = iosApp;
-			productReference = 80AAC4C472B395B893FC5DB0 /* CMPDemo.app */;
+			productReference = 80AAC4C472B395B893FC5DB0 /* CmpAppScaffold.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
