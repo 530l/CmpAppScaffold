@@ -28,7 +28,13 @@ dependencyResolutionManagement {
 }
 
 include(":androidApp")
-include(":core")
+include(":share")
+include(":core:common")
+include(":core:data")
+include(":core:design")
+include(":feature:home")
+include(":feature:browse")
+include(":feature:message")
 include(":feature:cart")
 include(":feature:login")
-include(":shared")
+include(":feature:mine")

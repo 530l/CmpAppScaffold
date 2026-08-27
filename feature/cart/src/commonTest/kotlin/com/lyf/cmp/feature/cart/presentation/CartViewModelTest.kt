@@ -2,10 +2,10 @@ package com.lyf.cmp.feature.cart.presentation
 
 import com.lyf.cmp.core.model.Money
 import com.lyf.cmp.core.ui.loadmore.LoadMoreState
-import com.lyf.cmp.core.ui.loadmore.Page
 import com.lyf.cmp.core.util.formatMoney
-import com.lyf.cmp.feature.cart.data.ArticleRepository
 import com.lyf.cmp.feature.cart.domain.Article
+import com.lyf.cmp.feature.cart.domain.ArticlePage
+import com.lyf.cmp.feature.cart.domain.ArticleRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -164,31 +164,54 @@ class CartViewModelTest {
         assertEquals(listOf(1, 2), repository.requestedPages)
     }
 
+    @Test
+    fun loadMoreDeduplicatesRepeatedIdsAcrossPages() = runTest(dispatcher) {
+        val repository = FakeArticleRepository { page ->
+            if (page == 1) {
+                Result.success(ArticlePage(items = articles(listOf(1L, 2L, 3L)), hasMore = true))
+            } else {
+                // 第 2 页重复返回第 1 页的 id=2，并夹带页内重复的 id=5。
+                Result.success(ArticlePage(items = articles(listOf(2L, 5L, 5L, 6L)), hasMore = false))
+            }
+        }
+        val viewModel = CartViewModel(repository)
+        advanceUntilIdle()
+
+        viewModel.onIntent(CartIntent.LoadMore)
+        advanceUntilIdle()
+
+        // 撞 id 条目被过滤，列表 id 唯一，LazyColumn 的 item key 不会重复。
+        assertEquals(listOf(1L, 2L, 3L, 5L, 6L), viewModel.uiState.value.dataList.map { it.article.id })
+        // 演示价按展示位置计：去重后 id=6 落在 position 4，定价 5 分。
+        assertEquals(Money(5), viewModel.uiState.value.dataList.last().unitPrice)
+    }
+
     /** 页码 p 返回 3 条数据，第 2 页起 hasMore=false。 */
-    private fun successPage(page: Int): Result<Page<Article>> = Result.success(
-        Page(
-            items = (1..3).map { offset ->
-                val id = ((page - 1) * 3 + offset).toLong()
-                Article(
-                    id = id,
-                    title = "文章 $id",
-                    author = "作者",
-                    chapterName = "体系课程",
-                    link = "https://www.wanandroid.com/article/$id",
-                    niceDate = "1 小时前",
-                )
-            },
+    private fun successPage(page: Int): Result<ArticlePage> = Result.success(
+        ArticlePage(
+            items = articles((1..3).map { offset -> ((page - 1) * 3 + offset).toLong() }),
             hasMore = page < 2,
         ),
     )
+
+    private fun articles(ids: List<Long>): List<Article> = ids.map { id ->
+        Article(
+            id = id,
+            title = "文章 $id",
+            author = "作者",
+            chapterName = "体系课程",
+            link = "https://www.wanandroid.com/article/$id",
+            niceDate = "1 小时前",
+        )
+    }
 }
 
 private class FakeArticleRepository(
-    private val handler: FakeArticleRepository.(page: Int) -> Result<Page<Article>>,
+    private val handler: FakeArticleRepository.(page: Int) -> Result<ArticlePage>,
 ) : ArticleRepository {
     val requestedPages = mutableListOf<Int>()
 
-    override suspend fun loadPage(page: Int): Result<Page<Article>> {
+    override suspend fun loadPage(page: Int): Result<ArticlePage> {
         requestedPages += page
         return handler(page)
     }

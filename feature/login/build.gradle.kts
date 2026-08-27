@@ -28,7 +28,7 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
-            implementation(project(":core"))
+            implementation(project(":core:design"))
 
             implementation(libs.compose.runtime)
             implementation(libs.compose.foundation)

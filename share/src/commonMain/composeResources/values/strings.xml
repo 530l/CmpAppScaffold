@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tab_home">首页</string>
+    <string name="tab_browse">逛</string>
+    <string name="tab_message">消息</string>
+    <string name="tab_cart">购物车</string>
+    <string name="tab_mine">我的</string>
+    <string name="press_again_to_exit">再按一次退出应用</string>
+</resources>

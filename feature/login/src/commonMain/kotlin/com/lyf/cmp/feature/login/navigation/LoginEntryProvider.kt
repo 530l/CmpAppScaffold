@@ -11,8 +11,12 @@ import kotlinx.serialization.modules.subclass
 /** 登录模块只暴露路由和 EntryProvider，不向其他 Feature 暴露页面拼装细节。 */
 @Serializable
 sealed interface LoginRoute : NavKey {
+    // Nav3 用 key.toString() 作 contentKey（saveable 状态与 entry 级 ViewModelStore 的存取键），
+    // data object 默认 toString 只有 "Main"，跨 feature 会互相覆盖/误删，必须限定名。
     @Serializable
-    data object Main : LoginRoute
+    data object Main : LoginRoute {
+        override fun toString(): String = "LoginRoute.Main"
+    }
 }
 
 val loginNavigationSerializers = SerializersModule {

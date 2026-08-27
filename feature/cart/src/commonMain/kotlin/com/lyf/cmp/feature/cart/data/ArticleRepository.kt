@@ -2,60 +2,66 @@ package com.lyf.cmp.feature.cart.data
 
 import com.lyf.cmp.core.network.NetworkError
 import com.lyf.cmp.core.network.NetworkResult
-import com.lyf.cmp.core.ui.loadmore.LoadableController
-import com.lyf.cmp.core.ui.loadmore.Page
-import com.lyf.cmp.feature.cart.data.remote.ArticleRemoteDataSource
+import com.lyf.cmp.core.network.safeRequest
+import com.lyf.cmp.core.network.toResult
+import com.lyf.cmp.feature.cart.data.remote.ArticleListApi
+import com.lyf.cmp.feature.cart.data.remote.WanApiResponse
 import com.lyf.cmp.feature.cart.data.remote.WanArticleListDto
-import com.lyf.cmp.feature.cart.data.remote.WanResponse
 import com.lyf.cmp.feature.cart.domain.Article
-
-interface ArticleRepository {
-    /** [page] 为 1 基页码（[LoadableController] 约定），内部映射为 wanandroid 的 0 基页码。 */
-    suspend fun loadPage(page: Int): Result<Page<Article>>
-}
+import com.lyf.cmp.feature.cart.domain.ArticlePage
+import com.lyf.cmp.feature.cart.domain.ArticleRepository
+import kotlinx.serialization.SerializationException
 
 class DefaultArticleRepository(
-    private val dataSource: ArticleRemoteDataSource,
+    private val api: ArticleListApi,
 ) : ArticleRepository {
-    override suspend fun loadPage(page: Int): Result<Page<Article>> =
-        when (val result = dataSource.getArticleList(page - LoadableController.FIRST_PAGE)) {
-            is NetworkResult.Success -> result.value.toPageResult()
-            is NetworkResult.Failure -> Result.failure(
-                IllegalStateException(result.error.logMessage()),
-            )
-        }
-}
-
-private fun WanResponse<WanArticleListDto>.toPageResult(): Result<Page<Article>> {
-    if (errorCode != 0) {
-        return Result.failure(
-            IllegalStateException("wanandroid errorCode=$errorCode ${errorMsg.orEmpty()}"),
-        )
+    override suspend fun loadPage(page: Int): Result<ArticlePage> {
+        require(page >= FIRST_PAGE) { "页码必须从 $FIRST_PAGE 开始" }
+        return safeRequest {
+            api.getArticleList(page - FIRST_PAGE)
+        }.unwrapWanApiResponse()
+            .toResult()
+            .mapCatching(WanArticleListDto::toPage)
     }
-    val list = data ?: return Result.failure(IllegalStateException("wanandroid 响应缺少 data"))
+}
 
-    return Result.success(
-        Page(
-            items = list.datas.map { dto ->
-                Article(
-                    id = dto.id,
-                    title = dto.title,
-                    author = dto.author.ifBlank { dto.shareUser },
-                    chapterName = dto.chapterName.ifBlank { dto.superChapterName },
-                    link = dto.link,
-                    niceDate = dto.niceDate,
+/** 后端包结构属于当前业务；通用网络层只处理 HTTP、连接与反序列化异常。 */
+private fun <T : Any> NetworkResult<WanApiResponse<T>>.unwrapWanApiResponse(): NetworkResult<T> =
+    when (this) {
+        is NetworkResult.Failure -> this
+        is NetworkResult.Success -> {
+            // 类型参数投影的属性不做 smart-cast，提局部变量后再判空。
+            val data = value.data
+            when {
+                value.errorCode != 0 -> NetworkResult.Failure(
+                    NetworkError.Api(value.errorCode, value.errorMsg),
                 )
-            },
-            // over=true 即最后一页；空页双保险交给 controller 的 End 判定。
-            hasMore = !list.over && list.datas.isNotEmpty(),
-        ),
-    )
-}
 
-/** 仅供日志使用的错误摘要，界面文案走各 feature 的资源。 */
-private fun NetworkError.logMessage(): String = when (this) {
-    is NetworkError.Http -> "HTTP $statusCode"
-    is NetworkError.Connectivity -> "网络连接失败"
-    is NetworkError.InvalidPayload -> "响应解析失败"
-    is NetworkError.Unknown -> "未知错误"
-}
+                data == null -> NetworkResult.Failure(
+                    NetworkError.InvalidPayload(
+                        SerializationException("成功响应缺少 data"),
+                    ),
+                )
+
+                else -> NetworkResult.Success(data, statusCode)
+            }
+        }
+    }
+
+private fun WanArticleListDto.toPage(): ArticlePage =
+    ArticlePage(
+        items = datas.map { dto ->
+            Article(
+                id = dto.id,
+                title = dto.title,
+                author = dto.author.ifBlank { dto.shareUser },
+                chapterName = dto.chapterName.ifBlank { dto.superChapterName },
+                link = dto.link,
+                niceDate = dto.niceDate,
+            )
+        },
+        // over=true 即最后一页；空页双保险交给 controller 的 End 判定。
+        hasMore = !over && datas.isNotEmpty(),
+    )
+
+private const val FIRST_PAGE = 1

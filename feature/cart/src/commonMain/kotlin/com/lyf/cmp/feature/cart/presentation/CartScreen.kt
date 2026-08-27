@@ -1,7 +1,6 @@
 package com.lyf.cmp.feature.cart.presentation
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,14 +12,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListScope
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.selection.triStateToggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -42,7 +40,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.lyf.cmp.core.design.AppTheme
+import com.lyf.cmp.core.ui.event.ObserveAsEvents
 import com.lyf.cmp.core.ui.loadmore.LoadableLazyColumn
+import com.lyf.cmp.core.ui.loadmore.LoadMoreState
+import com.lyf.cmp.core.ui.state.LoadableErrorBanner
+import com.lyf.cmp.core.ui.state.LoadableStateContent
 import com.lyf.cmp.core.util.formatMoney
 import com.lyf.cmp.feature.cart.domain.Article
 import com.lyf.cmp.feature.cart.resources.Res
@@ -64,10 +66,14 @@ internal fun CartScreen(
     viewModel: CartViewModel = koinViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    ObserveAsEvents(viewModel.events) { event ->
+        when (event) {
+            is CartEvent.Checkout -> onCheckout(event.selectedItemIds)
+        }
+    }
     CartContent(
         uiState = uiState,
         onIntent = viewModel::onIntent,
-        onCheckout = onCheckout,
     )
 }
 
@@ -75,7 +81,6 @@ internal fun CartScreen(
 private fun CartContent(
     uiState: CartUiState,
     onIntent: (CartIntent) -> Unit,
-    onCheckout: (selectedItemIds: List<Long>) -> Unit,
 ) {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -83,7 +88,6 @@ private fun CartContent(
             SettleBar(
                 uiState = uiState,
                 onIntent = onIntent,
-                onCheckout = onCheckout,
             )
         },
     ) { padding ->
@@ -103,14 +107,16 @@ private fun CartContent(
                 textAlign = TextAlign.Center,
             )
 
-            when {
-                uiState.isInitializing -> LoadingContent()
-                uiState.error != null && uiState.dataList.isEmpty() -> ErrorContent(
-                    message = errorMessage(uiState.error),
-                    onRetry = { onIntent(CartIntent.Retry) },
-                )
-                uiState.dataList.isEmpty() -> EmptyContent()
-                else -> ArticleList(
+            LoadableStateContent(
+                isInitializing = uiState.isInitializing,
+                isEmpty = uiState.dataList.isEmpty(),
+                errorMessage = uiState.error?.let { error -> errorMessage(error) },
+                loadingText = stringResource(Res.string.cart_loading),
+                emptyText = stringResource(Res.string.cart_empty),
+                retryText = stringResource(Res.string.cart_retry),
+                onRetry = { onIntent(CartIntent.Retry) },
+            ) {
+                ArticleList(
                     uiState = uiState,
                     onIntent = onIntent,
                 )
@@ -123,16 +129,17 @@ private fun LazyListScope.articleListContent(
     uiState: CartUiState,
     onIntent: (CartIntent) -> Unit,
 ) {
-    uiState.error?.let { error ->
-        item(key = "cart_error") {
-            ErrorBanner(message = errorMessage(error))
+    uiState.error
+        ?.takeUnless { uiState.loadMoreState == LoadMoreState.Failed }
+        ?.let { error ->
+            item(key = "cart_error") {
+                LoadableErrorBanner(message = errorMessage(error))
+            }
         }
-    }
-    itemsIndexed(uiState.dataList, key = { _, article -> article.id }) { position, article ->
+    items(uiState.dataList, key = { item -> item.article.id }) { item ->
         ArticleRow(
-            article = article,
-            position = position,
-            onToggle = { onIntent(CartIntent.ToggleItem(article.id)) },
+            item = item,
+            onToggle = { onIntent(CartIntent.ToggleItem(item.article.id)) },
         )
     }
 }
@@ -154,16 +161,16 @@ private fun ArticleList(
 
 @Composable
 private fun ArticleRow(
-    article: Article,
-    position: Int,
+    item: CartItemUiState,
     onToggle: () -> Unit,
 ) {
+    val article = item.article
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.surface)
             .toggleable(
-                value = article.selected,
+                value = item.selected,
                 role = Role.Checkbox,
                 onValueChange = { onToggle() },
             )
@@ -188,7 +195,7 @@ private fun ArticleRow(
             Text(
                 text = stringResource(
                     Res.string.cart_article_subtitle,
-                    formatMoney(demoUnitPrice(position)),
+                    formatMoney(item.unitPrice),
                     article.chapterName,
                     article.niceDate,
                 ),
@@ -199,7 +206,7 @@ private fun ArticleRow(
             )
         }
         Checkbox(
-            checked = article.selected,
+            checked = item.selected,
             onCheckedChange = null,
             colors = CheckboxDefaults.colors(checkedColor = MaterialTheme.colorScheme.primary),
         )
@@ -229,7 +236,6 @@ private fun ArticleThumbnail(article: Article) {
 private fun SettleBar(
     uiState: CartUiState,
     onIntent: (CartIntent) -> Unit,
-    onCheckout: (selectedItemIds: List<Long>) -> Unit,
 ) {
     Surface(color = MaterialTheme.colorScheme.surface, shadowElevation = 8.dp) {
         Row(
@@ -280,9 +286,7 @@ private fun SettleBar(
             }
             Spacer(modifier = Modifier.width(12.dp))
             Button(
-                onClick = {
-                    onCheckout(uiState.dataList.filter(Article::selected).map(Article::id))
-                },
+                onClick = { onIntent(CartIntent.Checkout) },
                 enabled = uiState.selectedCount > 0,
                 modifier = Modifier.height(44.dp),
             ) {
@@ -290,60 +294,6 @@ private fun SettleBar(
             }
         }
     }
-}
-
-@Composable
-private fun LoadingContent() {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            CircularProgressIndicator()
-            Text(
-                text = stringResource(Res.string.cart_loading),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
-}
-
-@Composable
-private fun ErrorContent(message: String, onRetry: () -> Unit) {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Text(text = message, color = MaterialTheme.colorScheme.error)
-            Button(onClick = onRetry) {
-                Text(stringResource(Res.string.cart_retry))
-            }
-        }
-    }
-}
-
-@Composable
-private fun EmptyContent() {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text(
-            text = stringResource(Res.string.cart_empty),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}
-
-@Composable
-private fun ErrorBanner(message: String) {
-    Text(
-        text = message,
-        color = MaterialTheme.colorScheme.error,
-        style = MaterialTheme.typography.bodyMedium,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        textAlign = TextAlign.Center,
-    )
 }
 
 private val thumbnailColors = listOf(
@@ -356,7 +306,7 @@ private val thumbnailColors = listOf(
 )
 
 private fun thumbnailColor(articleId: Long): Color =
-    thumbnailColors[(articleId % thumbnailColors.size).toInt()]
+    thumbnailColors[articleId.mod(thumbnailColors.size)]
 
 @Composable
 private fun errorMessage(error: CartError): String = when (error) {
@@ -371,12 +321,18 @@ private fun CartContentPreview() {
             uiState = CartUiState(
                 isInitializing = false,
                 dataList = listOf(
-                    Article(1, "Kotlin 与 Java，不是简单的高低之分", "化骨龙", "广场Tab", "https://example.com/1", "1天前"),
-                    Article(2, "Compose Multiplatform 1.11 发布", "官方", "资讯", "https://example.com/2", "2天前", selected = true),
+                    CartItemUiState(
+                        article = Article(1, "Kotlin 与 Java，不是简单的高低之分", "化骨龙", "广场Tab", "https://example.com/1", "1天前"),
+                        unitPrice = demoUnitPrice(0),
+                    ),
+                    CartItemUiState(
+                        article = Article(2, "Compose Multiplatform 1.11 发布", "官方", "资讯", "https://example.com/2", "2天前"),
+                        unitPrice = demoUnitPrice(1),
+                        selected = true,
+                    ),
                 ),
             ),
             onIntent = {},
-            onCheckout = {},
         )
     }
 }

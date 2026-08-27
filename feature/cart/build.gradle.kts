@@ -35,7 +35,9 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
-            implementation(project(":core"))
+            implementation(project(":core:common"))
+            implementation(project(":core:data"))
+            implementation(project(":core:design"))
 
             implementation(libs.compose.runtime)
             implementation(libs.compose.foundation)
@@ -54,7 +56,6 @@ kotlin {
             implementation(libs.ktorfit.lib.light)
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.kotlinx.coroutines.core)
-            implementation(libs.androidx.room.runtime)
             implementation(libs.jetbrains.navigation3.ui)
         }
         commonTest.dependencies {

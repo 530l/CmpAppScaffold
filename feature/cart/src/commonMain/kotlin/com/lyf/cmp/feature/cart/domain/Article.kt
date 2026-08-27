@@ -12,5 +12,10 @@ data class Article(
     val chapterName: String,
     val link: String,
     val niceDate: String,
-    val selected: Boolean = false,
+)
+
+/** 业务分页结果，不携带 UI 状态机或具体后端分页实现。 */
+data class ArticlePage(
+    val items: List<Article>,
+    val hasMore: Boolean,
 )

@@ -2,9 +2,9 @@ package com.lyf.cmp.feature.cart.data.remote
 
 import kotlinx.serialization.Serializable
 
-/** wanandroid 通用响应包：errorCode=0 成功，非 0 时 errorMsg 带原因。 */
+/** wanandroid 专用响应包，留在业务数据源内，避免污染通用网络层。 */
 @Serializable
-data class WanResponse<T>(
+data class WanApiResponse<T>(
     val errorCode: Int = 0,
     val errorMsg: String? = null,
     val data: T? = null,
@@ -23,7 +23,7 @@ data class WanArticleListDto(
 @Serializable
 data class WanArticleDto(
     val id: Long,
-    val title: String,
+    val title: String = "",
     val superChapterName: String = "",
     val chapterName: String = "",
     val author: String = "",

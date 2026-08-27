@@ -7,12 +7,12 @@
 
 ```bash
 # 完整链路：单测（Android host + iOS 模拟器双 target）+ Android APK + iOS framework 链接
-./gradlew :feature:cart:allTests :shared:allTests \
-    :androidApp:assembleDebug :shared:linkDebugFrameworkIosSimulatorArm64
+./gradlew :feature:cart:allTests :core:design:allTests :share:allTests \
+    :androidApp:assembleDebug :share:linkDebugFrameworkIosSimulatorArm64
 ```
 
 - iOS 真机/模拟器实跑：用 Xcode 打开 `iosApp/iosApp.xcodeproj` 运行（Run Script 会自动执行
-  `:shared:embedAndSignAppleFrameworkForXcode`）。
+  `:share:embedAndSignAppleFrameworkForXcode`）。
 - 本机若 `xcode-select -p` 指向 CommandLineTools，Konan 会报
   `xcrun returned non-zero exit code: 72`。临时绕过：命令前加
   `DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer`；
@@ -23,15 +23,20 @@
 
 ## 模块与依赖铁律
 
-- 依赖方向只允许 `androidApp/iosApp → shared → {core, feature:*}`，feature 只依赖 `core`。
-  禁止 `core → shared/feature`（反向依赖）与 feature 互相依赖。
-- 跨 feature 跳转只能在 `shared/navigation/AppNavigation.kt` 用回调连接，feature 之间不互引页面。
-- 新增数据库 Entity：Entity/Dao 放对应 feature 的 `data/local`，但必须到 `shared` 的
-  `AppDatabase` 注册；Room 的 KSP 处理器只挂在 `shared/build.gradle.kts`
+- 依赖方向只允许 `androidApp/iosApp → share → {core:common, core:data, core:design, feature:*}`；
+  feature 只依赖 core 三模块。core 内部只允许 `core:data / core:design → core:common` 单向，
+  禁止 core → share/feature（反向依赖）、feature 互相依赖、core:common 依赖任何兄弟模块。
+- 底部 tab 的注册点是 `share/navigation/TopLevelTab.kt`（枚举持路由）+
+  `AppNavigation.kt` 的 bottomBar；多返回栈机制在 `core:design/navigation/TabNavigation.kt`，
+  切 tab 不清栈，各 tab 返回历史独立。登录、支付等全局全屏流程走 `AppNavigation.kt`
+  的根栈，不塞进任一 tab 栈。
+- 跨 feature 跳转只能在 `share/navigation/AppNavigation.kt` 用回调连接，feature 之间不互引页面。
+- 新增数据库 Entity：Entity/Dao 放对应 feature 的 `data/local`，但必须到 `share` 的
+  `AppDatabase` 注册；Room 的 KSP 处理器只挂在 `share/build.gradle.kts`
   （`kspAndroid` / `kspIosArm64` / `kspIosSimulatorArm64`）。
-  注意：DAO 实现类（如 `CartDao_Impl`）只会在 `:shared` 生成，feature 模块内无法独立
+  注意：DAO 实现类（如 `CartDao_Impl`）只会在 `:share` 生成，feature 模块内无法独立
   构造 DAO（feature 的 commonTest 跑不了内存库 DAO 测试，属已知取舍）。
-- 改数据库结构 = 新版本号 + 提交 `shared/schemas/` 下新 JSON + 写迁移，三件事一起做。
+- 改数据库结构 = 新版本号 + 提交 `share/schemas/` 下新 JSON + 写迁移，三件事一起做。
 - Ktorfit 接口放 feature 的 `data/remote`；KSP 由 `de.jensklingenberg.ktorfit` 插件
   （≥2.7.5）自动挂载，不要手动加 `ktorfit-ksp` 依赖（2.7.2 插件与 Kotlin 2.4 KMP 不兼容，
   勿回退）。
@@ -46,8 +51,27 @@
   `CancellationException` 必须原样重抛。
 - 键值存储只注入 `core/storage/KeyValueStore` 接口，key 用业务模块的常量对象集中声明，
   不在调用点写裸字符串；MMKV 是 native 实现，JVM host 单测跑不了真实现，测试用内存 Fake。
+- 平台专属入口/工厂（无 expect 契约的独立平台函数对）一律用平台后缀 object 命名：
+  `PlatformIos`/`PlatformAndroid`（启动初始化）、`DatabaseIos`/`DatabaseAndroid`（建库）、
+  `StorageIos`/`StorageAndroid`（MMKV 初始化）；expect/actual 声明仍用同名声明+文件名后缀
+  （`AppDatabaseConstructor`、`PlatformExitHandler`）。
 - 共享代码不接收 `Any?` 平台对象，平台差异收在 `androidMain`/`iosMain`。
 - 注释和命名不与鸿蒙端工程对标；这是独立演进的 Kotlin 工程。
+- Nav3 路由 `data object` 必须覆写 `toString()` 返回 `接口名.对象名`（如 `"CartRoute.Main"`）：
+  Nav3 用 `key.toString()` 作 contentKey，是 saveable 状态（含滚动位置）与 entry 级
+  ViewModelStore 的存取键；裸 `data object Main` 跨 feature 全叫 "Main"，会互相覆盖、
+  弹出时互相误删（症状：返回/切 tab 后列表回顶部）。
+- 多返回栈 tab 必须走 `core:design` 的 `TabAppNavHost`：每个 tab 的栈各自调用
+  `rememberDecoratedNavEntries`，并持有各自独立的 entry decorators，NavDisplay 按 entries 切换。
+  不要把不同栈轮流塞给同一个 NavDisplay 的 backStack 参数——上一 tab 的 entry 会被
+  误判为弹出并清掉状态。
+- 底栏是常驻 overlay（share 的 Box 底层 + `TabAppNavHost` 的 entry 层让位），
+  不要改回 Scaffold bottomBar + AnimatedVisibility 方案：底栏显隐动画会在页面进场后
+  释放占位、引发内容二次跳动（垂直居中布局可见标题下坠）。tab 根页面让位高度 =
+  `TabBarContentHeight` + 手势区 inset；换非标准高度底栏要把实际高度传给 TabAppNavHost。
+  tab 内二级页覆盖底栏时必须同步禁用底栏交互与无障碍语义；全局页由根栈覆盖整个 tab shell。
+- 应用窗口保持 edge-to-edge，根导航不统一添加 safeDrawing padding；页面背景铺满窗口，
+  文字、按钮等交互内容由页面自己的 Scaffold/TopAppBar/WindowInsets 避让系统栏和刘海。
 
 ## 版本与依赖
 
