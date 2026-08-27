@@ -1,0 +1,5 @@
+// 复制为 Local.xcconfig 后填写；Local.xcconfig 已被 .gitignore 排除。
+TEAM_ID=YOUR_TEAM_ID
+
+// 正式项目可在本地先覆盖，最终发布值应由 CI 的签名配置注入。
+// PRODUCT_BUNDLE_IDENTIFIER=com.yourcompany.yourapp

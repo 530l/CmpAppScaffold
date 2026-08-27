@@ -46,6 +46,13 @@
 
 - presentation 层单向数据流：不可变 `UiState`（派生量用计算属性）+ sealed `Intent` +
   `onIntent()` 唯一入口；Composable 子组件只收状态与回调，不持有 ViewModel。
+- 初始加载放 ViewModel `init {}`（列表页即 `loadable.initialize()`）：Nav3 entry 首次进
+  组合才创建 VM，`init` 等价「首次进入屏幕」；切 tab/返回只是重进组合、VM 不重建，初始
+  加载不会重跑，状态天然保留，单测构造 VM 后 advanceUntilIdle 即完成初始加载。
+  Composable 禁止 `LaunchedEffect(Unit) { vm.loadXxx() }` 式 UI 直接触发业务加载，
+  `LaunchedEffect` 只用于生命周期信号（返回键、权限申请）与事件收集（ObserveAsEvents）；
+  刷新/重试/触底一律走 Intent，不引入 ScreenStarted 式启动 Intent——tab 切换会反复重进
+  组合导致信号重发，去重负担大于收益。
 - 金额一律用 `core/model/Money`（最小货币单位 Long），展示用 `formatMoney`，禁止浮点。
 - 日志走 `core/log/AppLogger`，不直接依赖 Kermit；网络错误走 `NetworkResult` 边界，
   `CancellationException` 必须原样重抛。

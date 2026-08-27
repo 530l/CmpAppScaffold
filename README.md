@@ -50,7 +50,7 @@ share                      共用应用入口、根导航、五 Tab 壳、初始
 ```kotlin
 interface ProductApi {
     @GET("v1/products")
-    suspend fun getProducts(): HttpResponse
+    suspend fun getProducts(): Response<List<ProductDto>>
 }
 
 class ProductRemoteDataSource(
@@ -113,7 +113,9 @@ PlatformAndroid.initSharedApp(
 )
 ```
 
-不要把 API token、证书密码、签名私钥或真实生产密钥提交到仓库。当前 iOS 签名配置按项目现状保留，团队化前建议把 Team ID 等环境差异迁移到不入库的本地 xcconfig。
+不要把 API token、证书密码、签名私钥或真实生产密钥提交到仓库。iOS 首次运行时把
+`iosApp/Configuration/Local.xcconfig.example` 复制为 `Local.xcconfig` 并填写 `TEAM_ID`；
+该文件已被忽略，个人签名不会污染仓库，CI 可用自己的 xcconfig 覆盖同名字段。
 
 Android release 支持通过用户级 `~/.gradle/gradle.properties` 注入签名；四项必须同时提供，否则配置阶段会明确失败：
 
@@ -131,6 +133,28 @@ CMP_RELEASE_KEY_PASSWORD=replace_me
 3. 提供显式 migration 并覆盖升级测试；生产环境禁止使用 destructive migration。
 
 当前购物车演示已改远端分页，无本地业务表；Room 不允许空实体列表，v2 起 `AppDatabase` 以 `SchemaPlaceholderEntity` 占位保持管线可用（v1 的 `cart_items` 表由 `MIGRATION_1_2` 显式 DROP）。接入首个业务 Entity 时删除占位表：递增版本号 + 迁移中 DROP `schema_placeholder` + 提交新 schema JSON，三件事一起做。
+
+Room 与 MMKV 是脚手架预置能力，不为当前演示业务继续增加仓储抽象。Room 数据库通过 Koin `single` 在首次注入时创建；MMKV 实例同样按首次注入创建，但平台初始化必须在应用启动主线程完成，以保证后续可能发生在任意线程的首次读取安全。正式项目确定不需要其中一项时，应连同依赖、初始化和占位结构完整删除，不保留半接入状态。
+
+## 导航与生命周期升级回归
+
+`core:design` 对外只暴露 `TabAppNavHost` 与刷新/分页容器；iOS 下拉手势细节和 Tab 的 `ViewModelStore` 保活实现都留在模块内部，不向业务 Feature 泄漏。它们用于解决 iOS 手势冲突、Tab 状态丢失和返回后重建等已验证问题，暂不再增加策略接口或第二套导航抽象。
+
+升级 Navigation 3、Lifecycle 或 Compose 时不要只看编译通过，至少人工回归以下链路：
+
+1. 购物车勾选商品后切到“我的”，再切回购物车，勾选和滚动位置仍保留。
+2. 购物车进入登录页再返回，购物车状态不刷新、不重建。
+3. 每个 Tab 的二级页历史互相隔离，Android 从其他 Tab 根页面返回时直接切回首页且无页面转场。
+4. iOS 侧滑返回完成和取消时页面、底栏、遮罩均连续，不露出错误 Tab。
+5. 应用进入后台再恢复，以及系统可恢复状态重建后，当前路由和可保存页面状态正确。
+
+依赖版本以稳定版为默认选择，不为追新升级到 alpha/beta；若上游稳定版改变 `ViewModelStore` 或 entry 装饰器语义，应先在 `core:design` 适配并完成上述回归，再向业务模块放开升级。
+
+## iOS 隐私清单
+
+当前 `PrivacyInfo.xcprivacy` 只声明演示应用自身不跟踪用户、未登记数据采集类别；没有实际使用证据时，不预填 Required Reason API 理由。新增分析、广告、崩溃上报、存储或其他第三方 SDK 后，必须按真实代码和数据流更新清单，不能沿用脚手架默认值。
+
+每次正式上架前使用最终 Release Archive 生成并检查 Xcode Privacy Report，核对应用与所有内嵌 framework 的隐私清单、Required Reason API 和签名情况；再同步更新 App Store Connect 隐私标签。发现报告缺项后，应填写 Apple 允许且与实际用途一致的 reason code，禁止为通过校验随意选择理由。
 
 ## 新增业务功能约定
 

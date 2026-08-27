@@ -1,8 +1,12 @@
 TEAM_ID=
 
 PRODUCT_NAME=CmpAppScaffold
-PRODUCT_BUNDLE_IDENTIFIER=com.lyf.cmp.CmpAppScaffold$(TEAM_ID)
+// Bundle ID 是应用身份，不应随签名 Team 变化；接入真实项目时替换为正式标识。
+PRODUCT_BUNDLE_IDENTIFIER=com.lyf.cmp.CmpAppScaffold
 
 CURRENT_PROJECT_VERSION=1
 MARKETING_VERSION=1.0
 IPHONEOS_DEPLOYMENT_TARGET=15.0
+
+// 个人签名和团队差异放在不入库的本地配置中；后定义的值会覆盖上面的默认值。
+#include? "Local.xcconfig"

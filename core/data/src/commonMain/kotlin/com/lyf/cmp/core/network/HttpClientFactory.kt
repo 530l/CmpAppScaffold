@@ -15,7 +15,7 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
 import io.ktor.serialization.kotlinx.json.json
-import kotlinx.coroutines.CancellationException
+import kotlinx.io.IOException
 import kotlinx.serialization.json.Json
 
 private const val REQUEST_TIMEOUT_MILLIS = 30_000L
@@ -45,7 +45,8 @@ fun createHttpClient(config: AppConfig): HttpClient = HttpClient {
             request.method in IDEMPOTENT_METHODS && response.status.value in 500..599
         }
         retryOnExceptionIf { request, error ->
-            error !is CancellationException && request.method in IDEMPOTENT_METHODS
+            // 仅重试传输层异常；反序列化、参数和业务异常重试不会产生不同结果。
+            error is IOException && request.method in IDEMPOTENT_METHODS
         }
         exponentialDelay(maxDelayMs = 2_000)
     }

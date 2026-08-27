@@ -148,7 +148,8 @@ private fun AppBottomBar(
                             TopLevelTab.CART -> Icons.Default.ShoppingCart
                             TopLevelTab.MINE -> Icons.Default.Person
                         },
-                        contentDescription = stringResource(tab.labelRes),
+                        // NavigationBarItem 已有可见 label，图标不重复提供语义，避免双端读屏重复朗读。
+                        contentDescription = null,
                     )
                 },
                 label = { Text(text = stringResource(tab.labelRes)) },
