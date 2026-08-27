@@ -2,7 +2,6 @@ package com.lyf.cmp.core.init
 
 import com.lyf.cmp.core.config.AppConfig
 import com.lyf.cmp.core.storage.initPlatformStorage
-import com.lyf.cmp.database.AppDatabase
 import com.lyf.cmp.database.createDatabase
 import org.koin.dsl.module
 
@@ -13,7 +12,6 @@ fun initSharedApp(config: AppConfig = AppConfig()) {
         config = config,
         platformModule = module {
             single { createDatabase() }
-            single { get<AppDatabase>().cartDao() }
         },
     )
 }

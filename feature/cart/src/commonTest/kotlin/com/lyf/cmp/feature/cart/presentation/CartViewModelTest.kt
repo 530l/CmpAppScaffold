@@ -1,21 +1,18 @@
 package com.lyf.cmp.feature.cart.presentation
 
 import com.lyf.cmp.core.model.Money
-import com.lyf.cmp.core.network.NetworkError
-import com.lyf.cmp.core.network.NetworkResult
+import com.lyf.cmp.core.ui.loadmore.LoadMoreState
+import com.lyf.cmp.core.ui.loadmore.Page
 import com.lyf.cmp.core.util.formatMoney
-import com.lyf.cmp.feature.cart.data.CartRepository
-import com.lyf.cmp.feature.cart.domain.CartItem
+import com.lyf.cmp.feature.cart.data.ArticleRepository
+import com.lyf.cmp.feature.cart.domain.Article
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
-import kotlinx.io.IOException
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -46,58 +43,77 @@ class CartViewModelTest {
     }
 
     @Test
-    fun selectedItemsProduceCorrectQuantityAndTotal() = runTest(dispatcher) {
-        val viewModel = CartViewModel(FakeCartRepository())
+    fun initialLoadShowsFirstPage() = runTest(dispatcher) {
+        val repository = FakeArticleRepository { page -> successPage(page) }
+        val viewModel = CartViewModel(repository)
         advanceUntilIdle()
 
+        val state = viewModel.uiState.value
+        assertEquals(3, state.dataList.size)
+        assertFalse(state.isInitializing)
+        assertFalse(state.isRefreshing)
+        assertNull(state.error)
+        assertEquals(listOf(1), repository.requestedPages)
+    }
+
+    @Test
+    fun initialFailureShowsErrorThenRetryRecovers() = runTest(dispatcher) {
+        val repository = FakeArticleRepository { page ->
+            if (page == 1 && requestedPages.size == 1) {
+                Result.failure(IllegalStateException("网络连接失败"))
+            } else {
+                successPage(page)
+            }
+        }
+        val viewModel = CartViewModel(repository)
+        advanceUntilIdle()
+
+        assertEquals(CartError.LOAD_FAILED, viewModel.uiState.value.error)
+        assertTrue(viewModel.uiState.value.dataList.isEmpty())
+
+        viewModel.onIntent(CartIntent.Retry)
+        advanceUntilIdle()
+
+        assertNull(viewModel.uiState.value.error)
+        assertEquals(3, viewModel.uiState.value.dataList.size)
+        assertEquals(listOf(1, 1), repository.requestedPages)
+    }
+
+    @Test
+    fun positionBasedTotalsAndSelectAll() = runTest(dispatcher) {
+        val viewModel = CartViewModel(FakeArticleRepository { page -> successPage(page) })
+        advanceUntilIdle()
+
+        // 演示价 = position + 1（分）：选中第 0、1 条合计 1 + 2 = 3 分。
         viewModel.onIntent(CartIntent.ToggleItem(1))
         viewModel.onIntent(CartIntent.ToggleItem(2))
         advanceUntilIdle()
 
-        assertEquals(2, viewModel.uiState.value.selectedLineCount)
-        assertEquals(3L, viewModel.uiState.value.selectedQuantity)
-        assertEquals(Money(3_380), viewModel.uiState.value.total)
+        assertEquals(2, viewModel.uiState.value.selectedCount)
+        assertEquals(Money(3), viewModel.uiState.value.total)
         assertFalse(viewModel.uiState.value.allSelected)
-    }
-
-    @Test
-    fun toggleSelectAllSwitchesBetweenAllAndNone() = runTest(dispatcher) {
-        val viewModel = CartViewModel(FakeCartRepository())
-        advanceUntilIdle()
 
         viewModel.onIntent(CartIntent.ToggleSelectAll)
         advanceUntilIdle()
+
         assertTrue(viewModel.uiState.value.allSelected)
-        assertEquals(6, viewModel.uiState.value.selectedLineCount)
-        assertEquals(Money(50_650), viewModel.uiState.value.total)
+        assertEquals(3, viewModel.uiState.value.selectedCount)
+        assertEquals(Money(6), viewModel.uiState.value.total)
 
         viewModel.onIntent(CartIntent.ToggleSelectAll)
         advanceUntilIdle()
+
         assertFalse(viewModel.uiState.value.allSelected)
-        assertEquals(0, viewModel.uiState.value.selectedLineCount)
         assertEquals(Money.zero(), viewModel.uiState.value.total)
     }
 
     @Test
-    fun refreshSuccessStopsIndicatorAndClearsError() = runTest(dispatcher) {
-        val viewModel = CartViewModel(FakeCartRepository())
-        advanceUntilIdle()
-
-        viewModel.onIntent(CartIntent.Refresh)
-        advanceUntilIdle()
-
-        assertFalse(viewModel.uiState.value.isRefreshing)
-        assertNull(viewModel.uiState.value.error)
-        assertEquals(6, viewModel.uiState.value.items.size)
-    }
-
-    @Test
-    fun refreshFailureKeepsItemsAndShowsLoadError() = runTest(dispatcher) {
-        val viewModel = CartViewModel(
-            FakeCartRepository(
-                refreshResult = NetworkResult.Failure(NetworkError.Connectivity(IOException())),
-            ),
-        )
+    fun refreshFailureKeepsItemsAndShowsError() = runTest(dispatcher) {
+        val repository = FakeArticleRepository { page ->
+            if (requestedPages.size == 1) successPage(page)
+            else Result.failure(IllegalStateException("网络连接失败"))
+        }
+        val viewModel = CartViewModel(repository)
         advanceUntilIdle()
 
         viewModel.onIntent(CartIntent.Refresh)
@@ -105,37 +121,75 @@ class CartViewModelTest {
 
         assertEquals(CartError.LOAD_FAILED, viewModel.uiState.value.error)
         assertFalse(viewModel.uiState.value.isRefreshing)
-        assertEquals(6, viewModel.uiState.value.items.size)
+        assertEquals(3, viewModel.uiState.value.dataList.size)
     }
-}
 
-private class FakeCartRepository(
-    private val refreshResult: NetworkResult<Unit> = NetworkResult.Success(Unit, 200),
-) : CartRepository {
-    private val items = MutableStateFlow(SEED_ITEMS)
-
-    override fun observeCartItems(): Flow<List<CartItem>> = items
-
-    override suspend fun ensureSeeded() = Unit
-
-    override suspend fun refreshFromRemote(): NetworkResult<Unit> = refreshResult
-
-    override suspend fun toggleSelection(itemId: Long) {
-        items.value = items.value.map { item ->
-            if (item.id == itemId) item.copy(selected = !item.selected) else item
+    @Test
+    fun refreshSuccessClearsStaleError() = runTest(dispatcher) {
+        val repository = FakeArticleRepository { page ->
+            if (requestedPages.size == 1) {
+                Result.failure(IllegalStateException("网络连接失败"))
+            } else {
+                successPage(page)
+            }
         }
+        val viewModel = CartViewModel(repository)
+        advanceUntilIdle()
+        assertEquals(CartError.LOAD_FAILED, viewModel.uiState.value.error)
+
+        viewModel.onIntent(CartIntent.Refresh)
+        advanceUntilIdle()
+
+        assertNull(viewModel.uiState.value.error)
+        assertEquals(3, viewModel.uiState.value.dataList.size)
+        assertFalse(viewModel.uiState.value.isRefreshing)
     }
 
-    override suspend fun setAllSelected(selected: Boolean) {
-        items.value = items.value.map { it.copy(selected = selected) }
+    @Test
+    fun loadMoreAppendsNextPageThenStopsAtEnd() = runTest(dispatcher) {
+        val repository = FakeArticleRepository { page -> successPage(page) }
+        val viewModel = CartViewModel(repository)
+        advanceUntilIdle()
+
+        viewModel.onIntent(CartIntent.LoadMore)
+        advanceUntilIdle()
+
+        assertEquals(6, viewModel.uiState.value.dataList.size)
+        assertEquals(LoadMoreState.End, viewModel.uiState.value.loadMoreState)
+        assertEquals(listOf(1, 2), repository.requestedPages)
+
+        // 已到最后一页，继续触底短路，不再发请求。
+        viewModel.onIntent(CartIntent.LoadMore)
+        advanceUntilIdle()
+        assertEquals(listOf(1, 2), repository.requestedPages)
     }
+
+    /** 页码 p 返回 3 条数据，第 2 页起 hasMore=false。 */
+    private fun successPage(page: Int): Result<Page<Article>> = Result.success(
+        Page(
+            items = (1..3).map { offset ->
+                val id = ((page - 1) * 3 + offset).toLong()
+                Article(
+                    id = id,
+                    title = "文章 $id",
+                    author = "作者",
+                    chapterName = "体系课程",
+                    link = "https://www.wanandroid.com/article/$id",
+                    niceDate = "1 小时前",
+                )
+            },
+            hasMore = page < 2,
+        ),
+    )
 }
 
-private val SEED_ITEMS = listOf(
-    CartItem(1, "挂耳咖啡 · 10 包装", Money(1_250), 2, "☕"),
-    CartItem(2, "陶瓷马克杯 380ml", Money(880), 1, "🍵"),
-    CartItem(3, "无线蓝牙耳机 · 半入耳", Money(19_900), 1, "🎧"),
-    CartItem(4, "快充充电宝 20000mAh", Money(12_900), 1, "🔋"),
-    CartItem(5, "棉麻收纳袋 · 三件套", Money(3_990), 3, "🧺"),
-    CartItem(6, "极简木质台历 2026", Money(2_500), 1, "📅"),
-)
+private class FakeArticleRepository(
+    private val handler: FakeArticleRepository.(page: Int) -> Result<Page<Article>>,
+) : ArticleRepository {
+    val requestedPages = mutableListOf<Int>()
+
+    override suspend fun loadPage(page: Int): Result<Page<Article>> {
+        requestedPages += page
+        return handler(page)
+    }
+}

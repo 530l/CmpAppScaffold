@@ -3,7 +3,6 @@ package com.lyf.cmp.core.init
 import android.content.Context
 import com.lyf.cmp.core.config.AppConfig
 import com.lyf.cmp.core.storage.initPlatformStorage
-import com.lyf.cmp.database.AppDatabase
 import com.lyf.cmp.database.createDatabase
 import org.koin.dsl.module
 
@@ -18,7 +17,6 @@ fun initSharedApp(
         config = config,
         platformModule = module {
             single { createDatabase(appContext) }
-            single { get<AppDatabase>().cartDao() }
         },
     )
 }

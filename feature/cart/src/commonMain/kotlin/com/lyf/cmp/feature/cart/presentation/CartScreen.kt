@@ -12,8 +12,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.selection.triStateToggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -26,7 +26,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TriStateCheckbox
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -37,23 +36,21 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.lyf.cmp.core.design.AppTheme
-import com.lyf.cmp.core.image.AppImage
-import com.lyf.cmp.core.model.Money
+import com.lyf.cmp.core.ui.loadmore.LoadableLazyColumn
 import com.lyf.cmp.core.util.formatMoney
-import com.lyf.cmp.feature.cart.domain.CartItem
+import com.lyf.cmp.feature.cart.domain.Article
 import com.lyf.cmp.feature.cart.resources.Res
+import com.lyf.cmp.feature.cart.resources.cart_article_subtitle
 import com.lyf.cmp.feature.cart.resources.cart_checkout
 import com.lyf.cmp.feature.cart.resources.cart_empty
 import com.lyf.cmp.feature.cart.resources.cart_error_load
-import com.lyf.cmp.feature.cart.resources.cart_error_update
 import com.lyf.cmp.feature.cart.resources.cart_loading
-import com.lyf.cmp.feature.cart.resources.cart_price_quantity
-import com.lyf.cmp.feature.cart.resources.cart_product_image
 import com.lyf.cmp.feature.cart.resources.cart_retry
 import com.lyf.cmp.feature.cart.resources.cart_select_all
 import com.lyf.cmp.feature.cart.resources.cart_title
@@ -107,85 +104,102 @@ private fun CartContent(
             )
 
             when {
-                uiState.isLoading -> LoadingContent()
-                uiState.error != null && uiState.items.isEmpty() -> ErrorContent(
+                uiState.isInitializing -> LoadingContent()
+                uiState.error != null && uiState.dataList.isEmpty() -> ErrorContent(
                     message = errorMessage(uiState.error),
                     onRetry = { onIntent(CartIntent.Retry) },
                 )
-                uiState.items.isEmpty() -> EmptyContent()
-                else -> PullToRefreshBox(
-                    isRefreshing = uiState.isRefreshing,
-                    onRefresh = { onIntent(CartIntent.Refresh) },
-                ) {
-                    CartList(
-                        uiState = uiState,
-                        onIntent = onIntent,
-                    )
-                }
+                uiState.dataList.isEmpty() -> EmptyContent()
+                else -> ArticleList(
+                    uiState = uiState,
+                    onIntent = onIntent,
+                )
             }
         }
     }
 }
 
-@Composable
-private fun CartList(
+private fun LazyListScope.articleListContent(
     uiState: CartUiState,
     onIntent: (CartIntent) -> Unit,
 ) {
-    LazyColumn(modifier = Modifier.fillMaxSize()) {
-        uiState.error?.let { error ->
-            item(key = "cart_error") {
-                ErrorBanner(message = errorMessage(error))
-            }
+    uiState.error?.let { error ->
+        item(key = "cart_error") {
+            ErrorBanner(message = errorMessage(error))
         }
-        items(uiState.items, key = CartItem::id) { item ->
-            CartItemRow(
-                item = item,
-                onToggle = { onIntent(CartIntent.ToggleItem(item.id)) },
-            )
-        }
+    }
+    itemsIndexed(uiState.dataList, key = { _, article -> article.id }) { position, article ->
+        ArticleRow(
+            article = article,
+            position = position,
+            onToggle = { onIntent(CartIntent.ToggleItem(article.id)) },
+        )
     }
 }
 
 @Composable
-private fun CartItemRow(item: CartItem, onToggle: () -> Unit) {
+private fun ArticleList(
+    uiState: CartUiState,
+    onIntent: (CartIntent) -> Unit,
+) {
+    LoadableLazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        isRefreshing = uiState.isRefreshing,
+        loadMoreState = uiState.loadMoreState,
+        onRefresh = { onIntent(CartIntent.Refresh) },
+        onLoadMore = { onIntent(CartIntent.LoadMore) },
+        content = { articleListContent(uiState, onIntent) },
+    )
+}
+
+@Composable
+private fun ArticleRow(
+    article: Article,
+    position: Int,
+    onToggle: () -> Unit,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.surface)
             .toggleable(
-                value = item.selected,
+                value = article.selected,
                 role = Role.Checkbox,
                 onValueChange = { onToggle() },
             )
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        ProductThumbnail(item)
+        ArticleThumbnail(article)
         Column(
             modifier = Modifier
                 .weight(1f)
                 .padding(start = 12.dp),
         ) {
             Text(
-                text = item.name,
+                text = article.title,
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = stringResource(
-                    Res.string.cart_price_quantity,
-                    formatMoney(item.unitPrice),
-                    item.count,
+                    Res.string.cart_article_subtitle,
+                    formatMoney(demoUnitPrice(position)),
+                    article.chapterName,
+                    article.niceDate,
                 ),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
         Checkbox(
-            checked = item.selected,
+            checked = article.selected,
             onCheckedChange = null,
             colors = CheckboxDefaults.colors(checkedColor = MaterialTheme.colorScheme.primary),
         )
@@ -193,23 +207,21 @@ private fun CartItemRow(item: CartItem, onToggle: () -> Unit) {
 }
 
 @Composable
-private fun ProductThumbnail(item: CartItem) {
+private fun ArticleThumbnail(article: Article) {
     val shape = RoundedCornerShape(12.dp)
     Box(
         modifier = Modifier
             .size(56.dp)
             .clip(shape)
-            .background(productColor(item.id)),
+            .background(thumbnailColor(article.id)),
         contentAlignment = Alignment.Center,
     ) {
-        Text(text = item.emoji, fontSize = 26.sp)
-        if (!item.imageUrl.isNullOrBlank()) {
-            AppImage(
-                imageUrl = item.imageUrl,
-                contentDescription = stringResource(Res.string.cart_product_image, item.name),
-                modifier = Modifier.fillMaxSize(),
-            )
-        }
+        Text(
+            text = article.chapterName.firstOrNull()?.toString() ?: "#",
+            fontSize = 22.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
     }
 }
 
@@ -228,13 +240,13 @@ private fun SettleBar(
         ) {
             val allState = when {
                 uiState.allSelected -> ToggleableState.On
-                uiState.selectedLineCount > 0 -> ToggleableState.Indeterminate
+                uiState.selectedCount > 0 -> ToggleableState.Indeterminate
                 else -> ToggleableState.Off
             }
             Row(
                 modifier = Modifier.triStateToggleable(
                     state = allState,
-                    enabled = uiState.items.isNotEmpty(),
+                    enabled = uiState.dataList.isNotEmpty(),
                     role = Role.Checkbox,
                     onClick = { onIntent(CartIntent.ToggleSelectAll) },
                 ),
@@ -243,7 +255,7 @@ private fun SettleBar(
                 TriStateCheckbox(
                     state = allState,
                     onClick = null,
-                    enabled = uiState.items.isNotEmpty(),
+                    enabled = uiState.dataList.isNotEmpty(),
                     colors = CheckboxDefaults.colors(checkedColor = MaterialTheme.colorScheme.primary),
                 )
                 Text(
@@ -269,12 +281,12 @@ private fun SettleBar(
             Spacer(modifier = Modifier.width(12.dp))
             Button(
                 onClick = {
-                    onCheckout(uiState.items.filter(CartItem::selected).map(CartItem::id))
+                    onCheckout(uiState.dataList.filter(Article::selected).map(Article::id))
                 },
-                enabled = uiState.selectedQuantity > 0,
+                enabled = uiState.selectedCount > 0,
                 modifier = Modifier.height(44.dp),
             ) {
-                Text(stringResource(Res.string.cart_checkout, uiState.selectedQuantity))
+                Text(stringResource(Res.string.cart_checkout, uiState.selectedCount))
             }
         }
     }
@@ -334,7 +346,7 @@ private fun ErrorBanner(message: String) {
     )
 }
 
-private val productColors = listOf(
+private val thumbnailColors = listOf(
     Color(0xFFF7E8D3),
     Color(0xFFE2EFFA),
     Color(0xFFEFE7FB),
@@ -343,13 +355,12 @@ private val productColors = listOf(
     Color(0xFFE3F1EF),
 )
 
-private fun productColor(itemId: Long): Color =
-    productColors[(itemId % productColors.size).toInt()]
+private fun thumbnailColor(articleId: Long): Color =
+    thumbnailColors[(articleId % thumbnailColors.size).toInt()]
 
 @Composable
 private fun errorMessage(error: CartError): String = when (error) {
     CartError.LOAD_FAILED -> stringResource(Res.string.cart_error_load)
-    CartError.UPDATE_FAILED -> stringResource(Res.string.cart_error_update)
 }
 
 @Preview
@@ -358,10 +369,10 @@ private fun CartContentPreview() {
     AppTheme {
         CartContent(
             uiState = CartUiState(
-                isLoading = false,
-                items = listOf(
-                    CartItem(1, "挂耳咖啡 · 10 包装", Money(1_250), 2, "☕", selected = true),
-                    CartItem(2, "陶瓷马克杯 380ml", Money(880), 1, "🍵"),
+                isInitializing = false,
+                dataList = listOf(
+                    Article(1, "Kotlin 与 Java，不是简单的高低之分", "化骨龙", "广场Tab", "https://example.com/1", "1天前"),
+                    Article(2, "Compose Multiplatform 1.11 发布", "官方", "资讯", "https://example.com/2", "2天前", selected = true),
                 ),
             ),
             onIntent = {},

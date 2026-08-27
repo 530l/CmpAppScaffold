@@ -8,10 +8,13 @@ enum class AppEnvironment {
 
 /**
  * 应用运行配置。真实项目应由各平台的构建配置注入，不要把密钥放进共享源码。
+ *
+ * 默认 baseUrl 指向 wanandroid 演示接口（脚手架仅使用其文章列表分页接口），
+ * 实际项目按 README 环境配置说明注入自己的地址。
  */
 data class AppConfig(
     val environment: AppEnvironment = AppEnvironment.DEVELOPMENT,
-    val apiBaseUrl: String = "https://api.example.com/",
+    val apiBaseUrl: String = "https://www.wanandroid.com/",
     val enableNetworkLogging: Boolean = false,
 ) {
     init {

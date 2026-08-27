@@ -1,6 +1,6 @@
 # CmpAppScaffold
 
-一个面向 Android 与 iOS 的 Compose Multiplatform / Kotlin Multiplatform 商业项目脚手架。当前购物车示例不是内存假数据：选中状态由 Room 持久化，并通过 `Flow → StateFlow → Compose` 单向更新 UI。
+一个面向 Android 与 iOS 的 Compose Multiplatform / Kotlin Multiplatform 商业项目脚手架。购物车示例接入了 wanandroid 文章分页接口（`article/list/{page}/json`），演示下拉刷新、触底加载、勾选与结算底栏的完整链路；勾选状态与演示金额只存内存，远端数据不落库。
 
 ## 模块边界
 
@@ -87,11 +87,11 @@ LoadableLazyColumn(
 }
 ```
 
-本地全量列表（如购物车，Room 响应式 Flow）不需要分页组件，直接用 `PullToRefreshBox` 包住列表，刷新走「远端整单拉取写库 → Flow 自动回流」。
+本地全量列表（Room 响应式 Flow）不需要分页组件，直接用 `PullToRefreshBox` 包住列表，刷新走「远端整单拉取写库 → Flow 自动回流」。
 
 ## 环境配置
 
-`AppConfig` 默认使用占位地址 `https://api.example.com/`。实际项目应在 Android product flavor / Gradle BuildConfig 与 iOS xcconfig 中分别提供环境值，再在调用 `initSharedApp` 时注入：
+`AppConfig` 默认指向公开演示服务 `https://www.wanandroid.com/`（仅供脚手架演示）。实际项目应在 Android product flavor / Gradle BuildConfig 与 iOS xcconfig 中分别提供环境值，再在调用 `initSharedApp` 时注入：
 
 ```kotlin
 initSharedApp(
@@ -121,6 +121,8 @@ CMP_RELEASE_KEY_PASSWORD=replace_me
 2. 提交 `shared/schemas` 生成的新 schema JSON。
 3. 提供显式 migration 并覆盖升级测试；生产环境禁止使用 destructive migration。
 
+当前购物车演示已改远端分页，无本地业务表；Room 不允许空实体列表，v2 起 `AppDatabase` 以 `SchemaPlaceholderEntity` 占位保持管线可用（v1 的 `cart_items` 表由 `MIGRATION_1_2` 显式 DROP）。接入首个业务 Entity 时删除占位表：递增版本号 + 迁移中 DROP `schema_placeholder` + 提交新 schema JSON，三件事一起做。
+
 ## 新增业务功能约定
 
 当前业务按独立的 `feature/<feature-name>` KMP Gradle 模块组织：
@@ -138,7 +140,7 @@ CMP_RELEASE_KEY_PASSWORD=replace_me
 
 ## 商用前仍需按业务补齐
 
-- 替换 application id / bundle id、图标、品牌主题和占位 API 地址。
+- 替换 application id / bundle id、图标、品牌主题和演示 API 地址（wanandroid）。
 - 接入密钥管理、服务端认证刷新、证书策略和真实 API DTO。
 - 接入崩溃上报、性能监控、埋点、用户协议、隐私政策与账号注销流程。
 - 根据真实采集行为更新 `PrivacyInfo.xcprivacy`、Android 数据安全表单和商店隐私声明。
